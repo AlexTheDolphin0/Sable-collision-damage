@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "com.sable.collision_damage.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SubLevelPhysicsSystemMixin",
+    "RapierVoxelColliderBakeryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

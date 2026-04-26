@@ -1,0 +1,5 @@
+﻿{
+  "text.autoconfig.sablecollisiondamage.title": "Sable Collision Damage",
+  "text.autoconfig.sablecollisiondamage.option.minBreakSpeed": "Min break speed",
+  "text.autoconfig.sablecollisiondamage.option.staticSlowdownPerBlock": "Static slowdown per block"
+}
