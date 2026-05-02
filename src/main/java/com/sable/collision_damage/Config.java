@@ -5,6 +5,10 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    public static final ModConfigSpec.BooleanValue OVERRIDE_SABLE_FRAGILE_BLOCKS = BUILDER
+            .comment("Если выключенно, хрупкие блоки sable обрабатываются в этом аддоне ")
+            .define("overrideSableFragileBlocks", false);
+
     public static final ModConfigSpec.DoubleValue MIN_BREAK_SPEED = BUILDER
             .comment("Минимальная скорость")
             .defineInRange("minBreakSpeed", 15.0D, 0.0D, Double.MAX_VALUE);

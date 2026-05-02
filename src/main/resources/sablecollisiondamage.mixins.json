@@ -4,7 +4,8 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "SubLevelPhysicsSystemMixin",
-    "RapierVoxelColliderBakeryMixin"
+    "RapierVoxelColliderBakeryMixin",
+    "FragileBlockCallbackMixin"
   ],
   "injectors": {
     "defaultRequire": 1
