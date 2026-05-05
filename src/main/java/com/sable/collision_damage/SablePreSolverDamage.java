@@ -47,6 +47,8 @@ public final class SablePreSolverDamage {
         }
 
         final ObjectOpenHashSet<PendingBlockBreakKey> processedBreaks = new ObjectOpenHashSet<>();
+        final ServerLevel level = SubLevelPhysicsSystem.getCurrentlySteppingSystem().getLevel();
+        final double triggerVelocity = Config.MIN_BREAK_SPEED.get();
 
         for (final PendingBlockBreak pendingBreak : pendingBreaks) {
             final CollisionTarget target = pendingBreak.target();
@@ -54,16 +56,19 @@ public final class SablePreSolverDamage {
                 continue;
             }
 
-            if (!destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), target)) {
-                continue;
-            }
+            final float destroySpeed = target.subLevel() == null
+                    ? target.state().getDestroySpeed(level, target.blockPos())
+                    : target.state().getDestroySpeed(target.subLevel().getPlot().getEmbeddedLevelAccessor(), target.blockPos());
+            if (destroySpeed<0.0F) continue; //Unbreakable Block Check
+            if (pendingBreak.impactVelocity > triggerVelocity * destroySpeed)
+                if (!destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), target)) continue;
 
             SableImpactParticles.emitImpact(event.getPhysicsSystem().getLevel(), pendingBreak.originalState(), pendingBreak.globalHitPos(), pendingBreak.impactVelocity());
 
             final ServerSubLevel slowdownTarget = target.subLevel() != null
                     ? target.subLevel()
                     : findIntersectingShip(event.getPhysicsSystem().getLevel(), pendingBreak.globalHitPos());
-            queueSlowdown(event.getPhysicsSystem(), slowdownTarget, pendingBreak.globalHitPos());
+            queueSlowdown(event.getPhysicsSystem(), slowdownTarget, pendingBreak.globalHitPos(), destroySpeed);
         }
     }
 
@@ -109,8 +114,7 @@ public final class SablePreSolverDamage {
         }
     }
 
-    private static void queueBlockBreak(final SubLevelPhysicsSystem system, final CollisionTarget target, final Vector3d globalHitPos,
-                                        final double impactVelocity) {
+    private static void queueBlockBreak(final SubLevelPhysicsSystem system, final CollisionTarget target, final Vector3d globalHitPos, final double impactVelocity) {
         if (system == null) {
             return;
         }
@@ -120,7 +124,7 @@ public final class SablePreSolverDamage {
                 .add(new PendingBlockBreak(target, target.state(), new Vector3d(globalHitPos), impactVelocity));
     }
 
-    private static void queueSlowdown(final SubLevelPhysicsSystem system, final @Nullable ServerSubLevel subLevel, final Vector3d globalHitPos) {
+    private static void queueSlowdown(final SubLevelPhysicsSystem system, final @Nullable ServerSubLevel subLevel, final Vector3d globalHitPos, final double effectiveHardness) {
         final double slowdownPerBlock = Config.STATIC_SLOWDOWN_PER_BLOCK.get();
         if (system == null || subLevel == null || subLevel.isRemoved() || slowdownPerBlock <= 0.0D) {
             return;
@@ -129,7 +133,7 @@ public final class SablePreSolverDamage {
         final Vector3d plotContactPoint = toPlotPosition(subLevel, globalHitPos, new Vector3d());
         PENDING_CONTACT_SLOWDOWNS
                 .computeIfAbsent(system, key -> new ObjectArrayList<>())
-                .add(new PendingContactSlowdown(subLevel, new Vector3d(plotContactPoint), new Vector3d(globalHitPos), slowdownPerBlock));
+                .add(new PendingContactSlowdown(subLevel, new Vector3d(plotContactPoint), new Vector3d(globalHitPos), slowdownPerBlock * effectiveHardness));
     }
 
     private static Vector3d toPlotPosition(final ServerSubLevel subLevel, final Vector3d globalPoint, final Vector3d dest) {
@@ -280,13 +284,6 @@ public final class SablePreSolverDamage {
 
             final BlockState state = target.state();
             if (state.getBlock() instanceof LeavesBlock && state.getValue(LeavesBlock.PERSISTENT)) {
-                return CollisionResult.NONE;
-            }
-
-            final float destroySpeed = target.subLevel() == null
-                    ? state.getDestroySpeed(level, target.blockPos())
-                    : state.getDestroySpeed(target.subLevel().getPlot().getEmbeddedLevelAccessor(), target.blockPos());
-            if (destroySpeed < 0.0F) {
                 return CollisionResult.NONE;
             }
 
