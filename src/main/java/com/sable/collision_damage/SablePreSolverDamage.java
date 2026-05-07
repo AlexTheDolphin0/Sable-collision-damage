@@ -6,6 +6,7 @@ import dev.ryanhcode.sable.api.physics.handle.RigidBodyHandle;
 import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.companion.math.JOMLConversion;
 import dev.ryanhcode.sable.companion.math.Pose3d;
+import dev.ryanhcode.sable.index.SableTags;
 import dev.ryanhcode.sable.neoforge.event.ForgeSablePostPhysicsTickEvent;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -16,12 +17,20 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.IceBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 import com.sable.collision_damage.particle.SableImpactParticles;
+
+import javax.swing.text.html.HTML;
+import java.util.function.Predicate;
 
 public final class SablePreSolverDamage {
     private static final BlockSubLevelCollisionCallback UNIVERSAL_FRAGILE_CALLBACK = new UniversalFragileCallback();
@@ -49,22 +58,40 @@ public final class SablePreSolverDamage {
         final ObjectOpenHashSet<PendingBlockBreakKey> processedBreaks = new ObjectOpenHashSet<>();
         final ServerLevel level = SubLevelPhysicsSystem.getCurrentlySteppingSystem().getLevel();
         final double triggerVelocity = Config.MIN_BREAK_SPEED.get();
+        final double explosionCoefficient = Config.EXPLOSION_COEFFICIENT.get();
+        final double minExplosionSpeed = Config.MIN_EXPLOSION_SPEED.get();
+        final boolean inflameFlammable = Config.INFLAME_FLAMMABLE.get();
 
         for (final PendingBlockBreak pendingBreak : pendingBreaks) {
             final CollisionTarget target = pendingBreak.target();
+            if (target.state().getTags().anyMatch(Predicate.isEqual(SableTags.BOUNCY))) continue;
             if (!processedBreaks.add(new PendingBlockBreakKey(target.subLevel(), target.blockPos()))) {
                 continue;
             }
-
-            final float destroySpeed = target.subLevel() == null
+            @Nullable
+            final ServerSubLevel sublevel = (ServerSubLevel) Sable.HELPER.getContaining(level, JOMLConversion.atCenterOf(target.blockPos));
+            if (pendingBreak.impactVelocity > minExplosionSpeed && sublevel != null) {
+                final float explosionPower = (float) (pendingBreak.impactVelocity * explosionCoefficient * sublevel.getMassTracker().getMass());
+                level.explode(
+                        null,
+                        Explosion.getDefaultDamageSource(level, null),
+                        null,
+                        pendingBreak.globalHitPos().x,
+                        pendingBreak.globalHitPos().y,
+                        pendingBreak.globalHitPos().z,
+                        (float) Math.pow(explosionPower,1/3.0),
+                        false,
+                        Level.ExplosionInteraction.BLOCK
+                );
+            }
+            final float destroySpeed = sublevel == null
                     ? target.state().getDestroySpeed(level, target.blockPos())
-                    : target.state().getDestroySpeed(target.subLevel().getPlot().getEmbeddedLevelAccessor(), target.blockPos());
-            if (destroySpeed<0.0F) continue; //Unbreakable Block Check
-            if (pendingBreak.impactVelocity > triggerVelocity * destroySpeed)
+                    : target.state().getDestroySpeed(sublevel.getPlot().getEmbeddedLevelAccessor(), target.blockPos());
+            if (destroySpeed<0.0F) continue; // Unbreakable Block Check
+            if (pendingBreak.impactVelocity > triggerVelocity * destroySpeed) {
                 if (!destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), target)) continue;
-
-            SableImpactParticles.emitImpact(event.getPhysicsSystem().getLevel(), pendingBreak.originalState(), pendingBreak.globalHitPos(), pendingBreak.impactVelocity());
-
+                SableImpactParticles.emitImpact(event.getPhysicsSystem().getLevel(), pendingBreak.originalState(), pendingBreak.globalHitPos(), pendingBreak.impactVelocity());
+            }
             final ServerSubLevel slowdownTarget = target.subLevel() != null
                     ? target.subLevel()
                     : findIntersectingShip(event.getPhysicsSystem().getLevel(), pendingBreak.globalHitPos());
@@ -199,7 +226,6 @@ public final class SablePreSolverDamage {
                 bestTarget = new CollisionTarget(serverSubLevel, localBlockPos, state);
             }
         }
-
         return bestTarget;
     }
 

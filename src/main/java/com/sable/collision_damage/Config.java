@@ -1,9 +1,19 @@
 package com.sable.collision_damage;
 
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+
+    public static final ModConfigSpec.DoubleValue MIN_EXPLOSION_SPEED = BUILDER
+            .defineInRange("minExplosionSpeed", 15.0D, 0.0D, Double.MAX_VALUE);
+
+    public static final ModConfigSpec.DoubleValue EXPLOSION_COEFFICIENT = BUILDER
+            .defineInRange("explosionCoefficient", 0.05D, 0.0D, Double.MAX_VALUE);
+
+    public static final ModConfigSpec.BooleanValue INFLAME_FLAMMABLE = BUILDER
+            .define("inflameFlammable", true);
 
     public static final ModConfigSpec.BooleanValue OVERRIDE_SABLE_FRAGILE_BLOCKS = BUILDER
             .comment("Если выключенно, хрупкие блоки sable обрабатываются в этом аддоне ")
